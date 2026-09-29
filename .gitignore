@@ -1,0 +1,7 @@
+.venv/
+.idea/
+__pycache__/
+*.py[cod]
+.env
+temp_data/
+processor/import_processor/output_dir/

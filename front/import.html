@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智库入库</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,520;9..144,680&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+:root {
+    --paper: #f3eadb;
+    --paper-2: #efe4d0;
+    --ink: #1c1612;
+    --ink-soft: #3d342c;
+    --muted: #7a6a58;
+    --line: #d8cbb6;
+    --cinnabar: #c4452d;
+    --cinnabar-deep: #8e2c1c;
+    --moss: #2f6a4a;
+    --gold: #a97832;
+    --shadow: 0 18px 50px rgba(48, 28, 12, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    font-family: "Noto Sans SC", "Songti SC", sans-serif;
+    background:
+        radial-gradient(900px 420px at 110% -10%, rgba(196, 69, 45, 0.16), transparent 60%),
+        radial-gradient(700px 380px at -10% 110%, rgba(169, 120, 50, 0.14), transparent 55%),
+        linear-gradient(180deg, #f7f1e6 0%, var(--paper) 40%, #e7dcc8 100%);
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+}
+
+.stage {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 920px);
+    gap: 28px;
+    width: min(1080px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 36px 0 64px;
+    animation: rise 0.7s ease both;
+}
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+}
+
+.spine {
+    position: sticky;
+    top: 36px;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 28px;
+    padding: 6px 0 0;
+    border-right: 1px solid var(--ink);
+    font-family: "Fraunces", "Noto Serif SC", serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+
+.spine span {
+    writing-mode: vertical-rl;
+    letter-spacing: 0.28em;
+}
+
+.spine b {
+    color: var(--cinnabar);
+    font-weight: 680;
+}
+
+.sheet {
+    position: relative;
+}
+
+.mast {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 28px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--ink);
+}
+
+.kicker {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.seal {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--cinnabar);
+    color: var(--cinnabar);
+    font-family: "Noto Serif SC", serif;
+    font-weight: 700;
+    letter-spacing: 0;
+    transform: rotate(-8deg);
+}
+
+h1 {
+    margin: 0;
+    max-width: 12em;
+    font-family: "Fraunces", "Noto Serif SC", serif;
+    font-weight: 680;
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+}
+
+.lede {
+    margin: 10px 0 0;
+    max-width: 40em;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+.mast-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 28px;
+}
+
+.switch {
+    display: flex;
+    gap: 8px;
+    flex: none;
+    margin-top: 8px;
+}
+
+.switch a {
+    text-decoration: none;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    padding: 8px 14px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+}
+
+.switch a.here {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.switch a:hover { background: var(--cinnabar); color: #fff; border-color: var(--cinnabar); }
+
+.upload-area {
+    position: relative;
+    min-height: 230px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 36px 40px;
+    cursor: pointer;
+    background:
+        linear-gradient(135deg, transparent 18px, var(--paper-2) 18px);
+    border: 1px solid var(--ink);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.upload-area::before,
+.upload-area::after {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--cinnabar);
+}
+
+.upload-area::before { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+.upload-area::after { right: 10px; bottom: 10px; border-left: 0; border-top: 0; }
+
+.upload-area.is-hot,
+.upload-area:hover {
+    background:
+        linear-gradient(135deg, transparent 18px, #f8efe2 18px);
+    box-shadow: 8px 8px 0 rgba(196, 69, 45, 0.18);
+}
+
+.upload-icon {
+    font-family: "Fraunces", serif;
+    font-size: 42px;
+    line-height: 1;
+    color: var(--cinnabar);
+    margin-bottom: 10px;
+}
+
+.upload-text {
+    font-family: "Noto Serif SC", serif;
+    font-size: 22px;
+    color: var(--ink);
+}
+
+.upload-text small {
+    display: block;
+    margin-top: 8px;
+    font-family: "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+}
+
+.file-input { display: none; }
+
+.file-list {
+    margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.file-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    padding: 18px 18px 16px;
+    background: rgba(255, 250, 242, 0.82);
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--ink);
+}
+
+.file-info { min-width: 0; }
+
+.file-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+    margin-bottom: 10px;
+}
+
+.file-name {
+    font-family: "Noto Serif SC", serif;
+    font-weight: 700;
+    font-size: 18px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-size {
+    flex: none;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.status-badge {
+    align-self: start;
+    min-width: 88px;
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--paper);
+    background: var(--ink);
+}
+
+.status-uploading { background: var(--gold); }
+.status-processing { background: var(--ink); }
+.status-completed { background: var(--moss); }
+.status-error { background: var(--cinnabar); }
+
+.progress-wrapper { display: none; margin-top: 4px; }
+
+.progress-bar-container {
+    height: 3px;
+    background: var(--line);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--cinnabar);
+    transition: width 0.4s ease;
+}
+
+.progress-text {
+    margin-top: 6px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.log-details {
+    margin-top: 14px;
+    border-top: 1px dashed var(--line);
+    padding-top: 10px;
+}
+
+.log-details summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+
+.log-details summary::-webkit-details-marker { display: none; }
+
+.log-list {
+    margin: 10px 0 0;
+    padding: 0 0 0 18px;
+    list-style: none;
+    max-height: 220px;
+    overflow: auto;
+    position: relative;
+}
+
+.log-list::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 6px;
+    bottom: 6px;
+    width: 1px;
+    background: var(--line);
+}
+
+.log-list li {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0 7px 8px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.log-list li::before {
+    content: "";
+    position: absolute;
+    left: -16px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+}
+
+.log-done { color: var(--ink); }
+.log-done::before { background: var(--moss); border-color: var(--moss); }
+
+.log-running { color: var(--cinnabar-deep); }
+.log-running::before {
+    background: var(--cinnabar);
+    border-color: var(--cinnabar);
+    animation: pulse 1.4s infinite;
+}
+
+.log-duration {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+@keyframes pulse {
+    50% { transform: scale(1.35); }
+}
+
+@media (max-width: 760px) {
+    .stage { grid-template-columns: 1fr; width: min(100% - 28px, 920px); }
+    .spine { display: none; }
+    .kicker { flex-wrap: wrap; }
+    .mast-row { flex-direction: column; gap: 14px; }
+    .switch { margin-top: 0; }
+    h1 { font-size: 40px; }
+    .upload-area { padding: 28px 22px; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="stage">
+    <aside class="spine">
+        <span><b>智库</b> · 入库台</span>
+        <span>卷一 · 文献</span>
+    </aside>
+    <main class="sheet">
+        <header class="mast">
+            <div class="kicker">
+                <span class="seal">印</span>
+                <span>ARCHIVE DESK · 文献入库</span>
+            </div>
+            <div class="mast-row">
+                <div>
+                    <h1>把手册<br>送进智库。</h1>
+                    <p class="lede">拖入 PDF 或 Markdown。页面会被拆开、命名、写成向量，然后安静地等着被问到。</p>
+                </div>
+                <nav class="switch">
+                    <a class="here" href="/front/import.html">入库</a>
+                    <a href="http://127.0.0.1:8001/front/chat.html">智库引擎知识库</a>
+                </nav>
+            </div>
+        </header>
+
+        <div class="upload-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <div class="upload-icon">¶</div>
+            <div class="upload-text">把文件放到这张纸上
+                <small>PDF · MARKDOWN</small>
+            </div>
+            <input type="file" id="fileInput" class="file-input" accept=".pdf,.md">
+        </div>
+
+        <div id="fileList" class="file-list"></div>
+    </main>
+</div>
+
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+
+    // 模拟后端API地址
+    const API_BASE = 'http://127.0.0.1:8000';
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('is-hot');
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('is-hot');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('is-hot');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+
+    function handleFiles(files) {
+        Array.from(files).forEach(uploadFile);
+    }
+
+    function updateProgressUI(wrapper, percentage) {
+        const bar = wrapper.querySelector('.progress-bar');
+        const text = wrapper.querySelector('.progress-text');
+
+        const safePercentage = Math.min(Math.max(percentage, 0), 100);
+
+        bar.style.width = safePercentage + '%';
+        text.textContent = Math.round(safePercentage) + '%';
+
+        if (safePercentage >= 100) {
+            bar.style.background = '#2f6a4a';
+        } else if (safePercentage < 10) {
+            bar.style.background = '#a97832';
+        } else {
+            bar.style.background = '#c4452d';
+        }
+    }
+
+    async function uploadFile(file) {
+        // === 核心逻辑优化：动态判断总节点数 ===
+        const isPDF = file.name.toLowerCase().endsWith('.pdf');
+        // PDF 需要 9 步（含上传），MD 跳过 pdf_to_md 需要 8 步
+        const totalNodes = isPDF ? 8 : 7;
+
+        const id = 'file-' + Math.random().toString(36).substr(2, 8);
+        const html = `
+            <div class="file-item" id="${id}">
+                <div class="file-info">
+                    <div class="file-header">
+                        <span class="file-name">${file.name}</span>
+                        <span class="file-size">${(file.size / 1024).toFixed(2)} KB</span>
+                    </div>
+                    <div class="progress-wrapper">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar"></div>
+                        </div>
+                        <div class="progress-text">0%</div>
+                    </div>
+                    <details class="log-details" open>
+                        <summary>准备上传...</summary>
+                        <ul class="log-list"></ul>
+                    </details>
+                </div>
+                <div class="status-badge status-uploading">上传中...</div>
+            </div>
+        `;
+        fileList.insertAdjacentHTML('afterbegin', html);
+
+        const itemEl = document.getElementById(id);
+        const statusBadge = itemEl.querySelector('.status-badge');
+        const progressWrapper = itemEl.querySelector('.progress-wrapper');
+        const logListEl = itemEl.querySelector('.log-list');
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            progressWrapper.style.display = 'block';
+
+            // 使用动态的 totalNodes 计算基础上传进度
+            const uploadPercentage = (1 / totalNodes) * 100;
+            updateProgressUI(progressWrapper, Math.min(uploadPercentage, 10));
+
+            const initialLog = document.createElement('li');
+            initialLog.textContent = "开始上传文件...";
+            initialLog.className = "log-running";
+            logListEl.appendChild(initialLog);
+
+            const response = await fetch(`${API_BASE}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Upload failed');
+
+            const result = await response.json();
+            const taskId = result.task_id;
+
+            updateProgressUI(progressWrapper, uploadPercentage);
+            statusBadge.textContent = '处理中';
+            statusBadge.className = 'status-badge status-processing';
+
+            // 把专属的 totalNodes 传给轮询函数
+            pollStatus(taskId, itemEl, totalNodes);
+
+        } catch (error) {
+            console.error(error);
+            statusBadge.textContent = '上传失败';
+            statusBadge.className = 'status-badge status-error';
+            updateProgressUI(progressWrapper, 0);
+
+            const errLog = document.createElement('li');
+            errLog.textContent = "❌ 网络请求失败或服务器异常";
+            errLog.style.color = "#ef4444";
+            logListEl.appendChild(errLog);
+        }
+    }
+
+    function normalizeLogText(text) {
+        if (typeof text !== 'string') return String(text);
+        return text;
+    }
+
+    // 接收 totalNodes 参数计算最终百分比和渲染文案
+    function formatDuration(seconds) {
+        if (seconds < 60) {
+            return seconds.toFixed(1) + 's';
+        }
+        const mins = Math.floor(seconds / 60);
+        const secs = (seconds % 60).toFixed(0);
+        return `${mins}m${secs}s`;
+    }
+
+    function renderLogsAndCalculateProgress(itemEl, doneList, runningList, totalNodes, durations) {
+        const logSummary = itemEl.querySelector('.log-details summary');
+        const logListEl = itemEl.querySelector('.log-list');
+
+        const done = Array.isArray(doneList) ? doneList : [];
+        const running = Array.isArray(runningList) ? runningList : [];
+        const durationMap = durations || {};
+
+        // === 进度计算逻辑 ===
+        let currentPercentage = (done.length / totalNodes) * 100;
+
+        if (running.length > 0) {
+            currentPercentage += (0.5 / totalNodes) * 100;
+        }
+
+        if (currentPercentage >= 100) {
+            currentPercentage = 95;
+        }
+
+        // 计算总耗时
+        let totalDuration = 0;
+        for (const key in durationMap) {
+            totalDuration += durationMap[key];
+        }
+        const totalDurationText = totalDuration > 0 ? ` | 总耗时: ${formatDuration(totalDuration)}` : '';
+
+        // 更新日志文案
+        logSummary.textContent = `📋 运行日志 (已完成: ${done.length}, 进行中: ${running.length}, 共 ${totalNodes} 步${totalDurationText})`;
+
+        logListEl.innerHTML = '';
+
+        for (const item of done) {
+            if (item === 'upload_file') continue;
+
+            const li = document.createElement('li');
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = `${normalizeLogText(item)} 节点执行完成`;
+            li.appendChild(nameSpan);
+
+            // 添加耗时标签
+            if (durationMap[item] !== undefined) {
+                const durationSpan = document.createElement('span');
+                durationSpan.className = 'log-duration';
+                durationSpan.textContent = formatDuration(durationMap[item]);
+                li.appendChild(durationSpan);
+            }
+
+            li.className = 'log-done';
+            logListEl.appendChild(li);
+        }
+
+        for (const item of running) {
+            const li = document.createElement('li');
+            li.textContent = `正在处理 ${normalizeLogText(item)} 节点...`;
+            li.className = 'log-running';
+            logListEl.appendChild(li);
+        }
+
+        logListEl.scrollTop = logListEl.scrollHeight;
+
+        return currentPercentage;
+    }
+
+    function pollStatus(taskId, itemEl, totalNodes) {
+        const statusBadge = itemEl.querySelector('.status-badge');
+        const progressWrapper = itemEl.querySelector('.progress-wrapper');
+        const logDetails = itemEl.querySelector('.log-details');
+        let stopped = false;
+
+        const interval = setInterval(async () => {
+            if (stopped) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/status/${taskId}`);
+                if (!res.ok) throw new Error('Status request failed');
+
+                const data = await res.json();
+
+                if (stopped) return;
+
+                // 传入 totalNodes 继续计算
+                const calculatedPercentage = renderLogsAndCalculateProgress(itemEl, data.done_list, data.running_list, totalNodes, data.durations);
+
+                if (data.status === 'completed') {
+                    stopped = true;
+                    clearInterval(interval);
+                    statusBadge.textContent = '已完成';
+                    statusBadge.className = 'status-badge status-completed';
+                    updateProgressUI(progressWrapper, 100);
+
+                    setTimeout(() => {
+                        logDetails.open = false;
+                    }, 1000);
+
+                } else if (data.status === 'failed') {
+                    stopped = true;
+                    clearInterval(interval);
+                    statusBadge.textContent = '失败';
+                    statusBadge.className = 'status-badge status-error';
+
+                    const logListEl = itemEl.querySelector('.log-list');
+                    const errLog = document.createElement('li');
+                    errLog.textContent = "❌ 工作流执行失败中止";
+                    errLog.style.color = "#ef4444";
+                    logListEl.appendChild(errLog);
+
+                } else if (data.status === 'processing') {
+                    updateProgressUI(progressWrapper, calculatedPercentage);
+                }
+            } catch (e) {
+                console.error('Polling error', e);
+            }
+        }, 1500);
+    }
+</script>
+
+</body>
+</html>

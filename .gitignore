@@ -4,4 +4,5 @@ __pycache__/
 *.py[cod]
 .env
 temp_data/
+volumes/
 processor/import_processor/output_dir/

@@ -19,11 +19,23 @@
 | Python   | 3.12 及以上（当前虚拟环境为 3.13）                           |
 | 内存     | 建议 16GB 及以上                                             |
 | 显存     | 本地跑 BGE-M3 与 Reranker 时建议 8GB 及以上                  |
-| 外部服务 | Milvus、MongoDB、MinIO。本仓库没有 `docker-compose.yml`，需要单独启动 |
+| 外部服务 | Milvus、MongoDB、MinIO。可用根目录 `docker-compose.yml` 一键启动 |
 
 ## 安装与启动
 
 在仓库根目录执行。导入路径是 `api`、`core`、`processor`，工作目录必须是仓库根目录。
+
+### 1. 启动依赖服务
+
+```powershell
+docker compose up -d
+```
+
+会拉起 etcd、MinIO、Milvus、Attu（http://localhost:7000）、MongoDB。  
+MongoDB 默认账号：`admin` / `123456`，对应连接串示例：`mongodb://admin:123456@127.0.0.1:27017`。  
+MinIO 默认：`minioadmin` / `minioadmin`（API `9000`，控制台 `9001`）。
+
+### 2. 安装并启动应用
 
 ```powershell
 python -m venv .venv
@@ -121,6 +133,7 @@ front/
 test/
 temp_data/                    # 运行时上传目录，不提交
 .env.example
+docker-compose.yml            # Milvus / MinIO / MongoDB / Attu
 requirements.txt
 ```
 

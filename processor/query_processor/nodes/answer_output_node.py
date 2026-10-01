@@ -1,4 +1,5 @@
 from typing import Dict, Any, List, Tuple
+import os
 
 from langchain_openai import ChatOpenAI
 from typer.cli import state
@@ -34,24 +35,50 @@ class AnswerOutputNode(BaseNode):
             #4.1.2 调用大模型生成答案
             llm_answer = self._generate_answer(prompt,state)
             state["answer"] = llm_answer
-            #4.1.3 流式输出完之后，最终要告诉前端 SSE通道关闭了
-            if is_stream :
-                push_sse_event(task_id=task_id,event=SSEEvent.FINAL,data={})
+            # FINAL 统一在 _persist_result_fields 推送
 
-        #5. 保存历史会话信息到MongoDB中
-        self._save_history(state)
+        #5. 将答案相关字段写入 Redis result（历史由 Java 落库，STEP08）
+        self._persist_result_fields(state)
+        #6. 不再写 Mongo；保留调用点以便 KB_HISTORY_OWNER=mongo 回滚
+        if os.getenv("KB_HISTORY_OWNER", "java").strip().lower() == "mongo":
+            self._save_history(state)
 
         return state
+
+    def _persist_result_fields(self, state: QueryGraphState) -> None:
+        task_id = state.get("task_id")
+        if not task_id:
+            return
+        answer = state.get("answer") or ""
+        set_task_result(task_id=task_id, key="answer", value=answer)
+        set_task_result(task_id=task_id, key="rewritten_query", value=state.get("rewritten_query") or "")
+        import json
+        set_task_result(
+            task_id=task_id,
+            key="item_names",
+            value=json.dumps(state.get("item_names") or [], ensure_ascii=False),
+        )
+        # 流式最终包带上完整字段，供 Java SSE / 落库
+        if state.get("is_stream"):
+            push_sse_event(
+                task_id=task_id,
+                event=SSEEvent.FINAL,
+                data={
+                    "answer": answer,
+                    "rewritten_query": state.get("rewritten_query") or "",
+                    "item_names": state.get("item_names") or [],
+                    "status": "completed",
+                },
+            )
 
     #输出已有答案
     def _push_exist_answer(self, answer:str, is_stream:bool,task_id:str):
         #1. 判断到底是流式输出还是非流式输出
         if is_stream:
-            #1.1 流式输出,使用SSE队列
-            push_sse_event(task_id=task_id,event=SSEEvent.FINAL,data={"answer":answer})
-        else:
-            #1.2 非流式输出
-            set_task_result(task_id=task_id,key="answer",value=answer)
+            # FINAL 统一在 _persist_result_fields 推送（含完整字段）
+            return
+        #1.2 非流式输出
+        set_task_result(task_id=task_id,key="answer",value=answer)
 
 
     #构建答案生成的上下文prompt

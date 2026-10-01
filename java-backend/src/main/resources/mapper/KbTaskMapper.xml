@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kb.engine.mapper.KbTaskMapper">
+
+    <resultMap id="KbTaskMap" type="com.kb.engine.entity.KbTask">
+        <id property="taskId" column="task_id"/>
+        <result property="type" column="type"/>
+        <result property="status" column="status"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="queryText" column="query_text"/>
+        <result property="answer" column="answer"/>
+        <result property="errorMsg" column="error_msg"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO kb_task (
+            task_id, type, status, session_id, query_text, answer, error_msg, created_at, updated_at
+        ) VALUES (
+            #{taskId}, #{type}, #{status}, #{sessionId}, #{queryText}, #{answer}, #{errorMsg},
+            #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE kb_task
+        <set>
+            <if test="type != null">type = #{type},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sessionId != null">session_id = #{sessionId},</if>
+            <if test="queryText != null">query_text = #{queryText},</if>
+            <if test="answer != null">answer = #{answer},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            <if test="updatedAt != null">updated_at = #{updatedAt},</if>
+        </set>
+        WHERE task_id = #{taskId}
+    </update>
+
+    <select id="selectByTaskId" resultMap="KbTaskMap">
+        SELECT task_id, type, status, session_id, query_text, answer, error_msg, created_at, updated_at
+        FROM kb_task
+        WHERE task_id = #{taskId}
+    </select>
+</mapper>

@@ -92,7 +92,45 @@ services: # 定义需要运行的各个服务（容器）集合
       - "27017:27017" # 映射给外部连接使用的 27017 端口
     volumes: # 数据卷持久化挂载
       - /mongo-data:/data/db # 将宿主机目录 /mongo-data 映射给 MongoDB 存放实际数据
-    restart: always 
+    restart: always
+
+  # Java 混合改造 STEP01+：业务库（表结构见 STEP04）
+  mysql:
+    container_name: kb-mysql
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: knowledge_engine
+      MYSQL_USER: kb
+      MYSQL_PASSWORD: kb123
+    ports:
+      - "3306:3306"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/mysql:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  # Java 混合改造 STEP01+：任务进度 / SSE 事件总线（STEP05 起使用）
+  redis:
+    container_name: kb-redis
+    image: redis:7.2
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
 
 networks: # 自定义容器内部的虚拟网络
   default: # 覆盖默认网络行为

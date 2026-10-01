@@ -330,7 +330,7 @@ textarea::placeholder{color:#b09b84}
       <h1>智库引擎<br>知识库</h1>
       <p>对着已入库的手册说话。答案从纸页里来，进度写在行间。</p>
       <div class="links">
-        <a href="http://127.0.0.1:8000/front/import.html">去入库台</a>
+        <a href="/front/import.html">去入库台</a>
       </div>
     </aside>
     <div class="main">
@@ -369,8 +369,10 @@ textarea::placeholder{color:#b09b84}
   </div>
 
   <script>
-    // 默认同源；如你把页面单独打开（file://），可改成 http://127.0.0.1:8001
-    const API_BASE = `${location.protocol}//${location.host}`.includes('http') ? `${location.protocol}//${location.host}` : 'http://127.0.0.1:8001';
+    // 同源：由 Java 网关 :8080 统一代理（file:// 打开时请改成 http://127.0.0.1:8080）
+    const API_BASE = (location.protocol === 'http:' || location.protocol === 'https:')
+      ? ''
+      : 'http://127.0.0.1:8080';
     const chatEl = document.getElementById('chat');
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('send');

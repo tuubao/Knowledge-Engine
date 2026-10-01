@@ -1,26 +1,35 @@
-from typing import Dict, List
+"""
+任务进度追踪：进程内 dict + Redis 双写（STEP05）。
+
+Redis 为跨语言真相源；内存 dict 保留以便 Python 侧 get_* 与回滚。
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
 from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-"""
-任务id: 主要追踪上传文件（任务）的状态流程的
-上传一个文件就属于一个任务（唯一的任务id）---未来如果想知道上传的这个文件处理到哪里了就需要用任务id来查询
-"""
-# 只要访问不存在的 key，自动帮你初始化为 []
+logger = logging.getLogger(__name__)
+
 _tasks_running_list: Dict[str, List[str]] = defaultdict(list)
 _tasks_done_list: Dict[str, List[str]] = defaultdict(list)
 _tasks_duration: Dict[str, Dict[str, float]] = defaultdict(dict)
-
-# 只要访问不存在的 key，自动帮你初始化为 {} 查询时候用
-# key：任务id    内部字典的key:任务对应的某一个节点（答案生成节点）--->节点对应的结果
-# {"task1":{"answer":"节点的结果"}}
 _tasks_result: Dict[str, Dict[str, str]] = defaultdict(dict)
-
 _tasks_status: Dict[str, str] = {}
 
-TASK_STATUS_PROCESSING = "processing"  # 任务处理中
-TASK_STATUS_COMPLETED = "completed"  # 任务完成
-TASK_STATUS_FAILED = "failed"  # 任务失败
+TASK_STATUS_PROCESSING = "processing"
+TASK_STATUS_COMPLETED = "completed"
+TASK_STATUS_FAILED = "failed"
+
+TASK_TTL_SECONDS = 24 * 60 * 60
 
 _NODE_NAME_TO_CN: Dict[str, str] = {
     "upload_file": "上传文件",
@@ -32,103 +41,280 @@ _NODE_NAME_TO_CN: Dict[str, str] = {
     "bge_embedding_chunks_node": "向量生成",
     "milvus_import_node": "导入向量数据库",
     "__end__": "处理完成",
-    # --- Query 流程节点（kb/query_process/main_graph.py）---
     "item_name_confirmed_node": "确认问题产品",
     "answer_output_node": "生成答案",
     "rerank_node": "重排序",
     "rrf_merge_node": "倒排融合",
     "web_search_node": "网络搜索",
     "vector_search_node": "切片搜索",
-    "hyde_search_node": "切片搜索(假设性文档)"
+    "hyde_search_node": "切片搜索(假设性文档)",
 }
+
+_redis_client = None
+_redis_init_attempted = False
 
 
 def _to_cn(node_name: str) -> str:
-    # 1. 从节点映射字典中获取中文名，若未配置则直接返回原英文名
     return _NODE_NAME_TO_CN.get(node_name, node_name)
 
 
-def add_running_task(task_id: str, node_name: str) -> None:
-    # 1. 获取当前任务的运行节点列表（利用 defaultdict 自动初始化特性）
-    running = _tasks_running_list[task_id]
+def _redis():
+    """Lazy Redis client; returns None if unavailable."""
+    global _redis_client, _redis_init_attempted
+    if _redis_client is not None:
+        return _redis_client
+    if _redis_init_attempted:
+        return None
+    _redis_init_attempted = True
+    url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+    try:
+        import redis  # type: ignore
 
-    # 2. 将当前节点加入运行列表（并做去重判断，防止重复添加）
+        client = redis.Redis.from_url(
+            url,
+            decode_responses=True,
+            socket_connect_timeout=1.0,
+            protocol=2,  # RESP2 — compatible with embedded Redis / Redis 5.x
+        )
+        client.ping()
+        _redis_client = client
+        logger.info("task_util Redis connected: %s", url)
+        return _redis_client
+    except Exception as e:
+        logger.warning("task_util Redis unavailable (%s); memory-only mode", e)
+        return None
+
+
+def _k_status(task_id: str) -> str:
+    return f"kb:task:{task_id}:status"
+
+
+def _k_running(task_id: str) -> str:
+    return f"kb:task:{task_id}:running"
+
+
+def _k_done(task_id: str) -> str:
+    return f"kb:task:{task_id}:done"
+
+
+def _k_durations(task_id: str) -> str:
+    return f"kb:task:{task_id}:durations"
+
+
+def _k_result(task_id: str) -> str:
+    return f"kb:task:{task_id}:result"
+
+
+def _k_events(task_id: str) -> str:
+    return f"kb:task:{task_id}:events"
+
+
+def _k_event_buf(task_id: str) -> str:
+    return f"kb:task:{task_id}:event_buf"
+
+
+# SSE event name aliases (avoid importing sse_util)
+SSE_EVENT_PROGRESS = "progress"
+SSE_EVENT_DELTA = "delta"
+SSE_EVENT_FINAL = "final"
+
+
+def _touch_ttl(r, task_id: str) -> None:
+    for key in (
+        _k_status(task_id),
+        _k_running(task_id),
+        _k_done(task_id),
+        _k_durations(task_id),
+        _k_result(task_id),
+        _k_event_buf(task_id),
+    ):
+        try:
+            r.expire(key, TASK_TTL_SECONDS)
+        except Exception:
+            pass
+
+
+def _event_type_for_sse(event: str) -> str:
+    """Map legacy SSE event names to STEP08 protocol types."""
+    if event == SSE_EVENT_DELTA or event == "delta":
+        return "token"
+    if event == SSE_EVENT_FINAL or event == "final" or event == "final_answer":
+        return "done"
+    if event == "error":
+        return "error"
+    return "progress"
+
+
+def publish_sse_event(task_id: str, event: str, data: Optional[Dict[str, Any]] = None) -> None:
+    """
+    STEP08: publish SSE-compatible event to Redis channel + append to event buffer.
+    Payload shape (frozen):
+      {"event":"progress|delta|final","type":"progress|token|done|error","data":{...}, ...flat fields}
+    """
+    r = _redis()
+    if not r or not task_id:
+        return
+    payload_data = dict(data or {})
+    msg_type = _event_type_for_sse(event)
+    envelope = {
+        "event": event,
+        "type": msg_type,
+        "task_id": task_id,
+        "data": payload_data,
+    }
+    # Flatten common fields for Java consumers that read top-level keys
+    envelope.update(payload_data)
+    raw = json.dumps(envelope, ensure_ascii=False)
+    try:
+        r.rpush(_k_event_buf(task_id), raw)
+        r.expire(_k_event_buf(task_id), TASK_TTL_SECONDS)
+        r.publish(_k_events(task_id), raw)
+    except Exception as e:
+        logger.debug("publish_sse_event failed: %s", e)
+
+
+def _publish_progress(task_id: str) -> None:
+    r = _redis()
+    if not r or not task_id:
+        return
+    try:
+        payload = {
+            "event": "progress",
+            "type": "progress",
+            "task_id": task_id,
+            "status": get_task_status(task_id),
+            "running_list": get_running_task_list(task_id),
+            "done_list": get_done_task_list(task_id),
+            "durations": get_node_durations(task_id),
+            "data": {
+                "status": get_task_status(task_id),
+                "running_list": get_running_task_list(task_id),
+                "done_list": get_done_task_list(task_id),
+                "durations": get_node_durations(task_id),
+            },
+        }
+        raw = json.dumps(payload, ensure_ascii=False)
+        r.rpush(_k_event_buf(task_id), raw)
+        r.expire(_k_event_buf(task_id), TASK_TTL_SECONDS)
+        r.publish(_k_events(task_id), raw)
+    except Exception as e:
+        logger.debug("publish progress failed: %s", e)
+
+
+def _redis_add_running(task_id: str, node_name: str) -> None:
+    r = _redis()
+    if not r or not task_id:
+        return
+    try:
+        cn = _to_cn(node_name)
+        current = r.lrange(_k_running(task_id), 0, -1) or []
+        if cn not in current:
+            r.rpush(_k_running(task_id), cn)
+        _touch_ttl(r, task_id)
+    except Exception as e:
+        logger.warning("redis add running failed: %s", e)
+
+
+def _redis_add_done(task_id: str, node_name: str) -> None:
+    r = _redis()
+    if not r or not task_id:
+        return
+    try:
+        cn = _to_cn(node_name)
+        r.lrem(_k_running(task_id), 0, cn)
+        done = r.lrange(_k_done(task_id), 0, -1) or []
+        if cn not in done:
+            r.rpush(_k_done(task_id), cn)
+        _touch_ttl(r, task_id)
+    except Exception as e:
+        logger.warning("redis add done failed: %s", e)
+
+
+def add_running_task(task_id: str, node_name: str) -> None:
+    if not task_id:
+        return
+    running = _tasks_running_list[task_id]
     if node_name not in running:
         running.append(node_name)
+    _redis_add_running(task_id, node_name)
+    _publish_progress(task_id)
 
 
 def add_done_task(task_id: str, node_name: str) -> None:
-    # 1. 如果该节点还在运行列表中，则将其移出（表示该节点已结束运行）
+    if not task_id:
+        return
     if node_name in _tasks_running_list[task_id]:
         _tasks_running_list[task_id].remove(node_name)
-
-    # 2. 获取当前任务的已完成节点列表
     done = _tasks_done_list[task_id]
-
-    # 3. 将当前节点加入已完成列表（做去重判断，防止重复标记）
     if node_name not in done:
         done.append(node_name)
+    _redis_add_done(task_id, node_name)
+    _publish_progress(task_id)
 
 
 def get_running_task_list(task_id: str) -> List[str]:
-    # 1. 获取指定任务运行中的节点列表，并通过列表推导式统一转换为中文展示名返回
     return [_to_cn(n) for n in _tasks_running_list.get(task_id, [])]
 
 
 def get_done_task_list(task_id: str) -> List[str]:
-    # 1. 获取指定任务已完成的节点列表，并通过列表推导式统一转换为中文展示名返回
     return [_to_cn(n) for n in _tasks_done_list.get(task_id, [])]
 
 
 def get_task_status(task_id: str) -> str:
-    """
-    根据任务ID 获取任务状态
-    :param task_id:
-    :return:
-    """
-    # 1. 安全获取指定任务的总体运行状态，若不存在则返回空字符串
     return _tasks_status.get(task_id, "")
 
 
 def update_task_status(task_id: str, status_name: str) -> None:
-    # 1. 更新指定任务的总体运行状态（如 processing 等）
+    if not task_id:
+        return
     _tasks_status[task_id] = status_name
+    r = _redis()
+    if r:
+        try:
+            r.set(_k_status(task_id), status_name, ex=TASK_TTL_SECONDS)
+            _touch_ttl(r, task_id)
+        except Exception as e:
+            logger.warning("redis set status failed: %s", e)
+    _publish_progress(task_id)
 
 
 def set_task_result(task_id: str, key: str, value: str) -> None:
-    """
-    存储任务结果字段（如 answer / error）。
-    """
     _tasks_result[task_id][key] = value
+    r = _redis()
+    if r and task_id:
+        try:
+            r.hset(_k_result(task_id), key, value if value is not None else "")
+            _touch_ttl(r, task_id)
+        except Exception as e:
+            logger.warning("redis set result failed: %s", e)
 
 
 def get_task_result(task_id: str, key: str, default: str = "") -> str:
-    """
-    获取任务结果字段（如 answer / error）。
-    """
     return _tasks_result.get(task_id, {}).get(key, default)
 
 
-
 def add_node_duration(task_id: str, node_name: str, duration: float) -> None:
-    """记录节点耗时（秒）"""
     cn_name = _to_cn(node_name)
-    _tasks_duration[task_id][cn_name] = round(duration, 2)
+    rounded = round(duration, 2)
+    _tasks_duration[task_id][cn_name] = rounded
+    r = _redis()
+    if r and task_id:
+        try:
+            r.hset(_k_durations(task_id), cn_name, str(rounded))
+            _touch_ttl(r, task_id)
+        except Exception as e:
+            logger.warning("redis set duration failed: %s", e)
+    _publish_progress(task_id)
+
 
 def get_node_durations(task_id: str) -> Dict[str, float]:
-    """获取所有节点的耗时"""
     return dict(_tasks_duration.get(task_id, {}))
 
-def get_task_info(task_id: str) -> Dict[str, any]:
-    """
-    获取任务的全局信息（状态 + 运行中节点 + 已完成节点）
-    :param task_id: 任务ID
-    :return: 包含 status、running_list、done_list 的字典
-    """
+
+def get_task_info(task_id: str) -> Dict[str, Any]:
     return {
         "status": get_task_status(task_id),
         "running_list": get_running_task_list(task_id),
         "done_list": get_done_task_list(task_id),
-        "durations": get_node_durations(task_id)
+        "durations": get_node_durations(task_id),
     }
-

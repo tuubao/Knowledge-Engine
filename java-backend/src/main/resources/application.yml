@@ -1,0 +1,53 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: knowledge-engine
+  profiles:
+    active: dev
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  mvc:
+    async:
+      # SSE may run for a long time
+      request-timeout: 3600000
+
+# Python AI workers (used from STEP02+)
+ai:
+  import-base-url: http://127.0.0.1:8000
+  query-base-url: http://127.0.0.1:8001
+
+# Shared with Python workers
+kb:
+  front-dir: ../front
+  temp-data-dir: ../temp_data
+  redis:
+    embedded: true
+  minio:
+    enabled: true
+    endpoint: 127.0.0.1:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket-name: knowledge-base-v1
+    secure: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # Local/dev: show component details (db / redis / workers)
+      show-details: always
+  health:
+    db:
+      enabled: true
+    # Default Redis indicator calls INFO; embedded Redis often fails — use redisPing instead
+    redis:
+      enabled: false

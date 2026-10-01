@@ -16,3 +16,4 @@ python-multipart
 requests
 torch
 openai-agents
+redis>=5.0.0

@@ -1,9 +1,15 @@
 import asyncio
 import json
 import logging
+import os
 import queue
 from typing import Dict, Any, Optional, AsyncGenerator
 from fastapi import Request
+
+try:
+    from utils.task_util import publish_sse_event as _redis_publish_sse
+except Exception:  # pragma: no cover
+    _redis_publish_sse = None
 
 
 class SSEEvent:
@@ -46,7 +52,7 @@ def _sse_pack(event: str, data: Dict[str, Any]) -> str:
 
 def push_sse_event(task_id: str, event: str, data: Dict[str, Any]):
     """
-    通过 task_id 推送事件到 SSE 队列
+    通过 task_id 推送事件到 SSE 队列，并双写 Redis（STEP08）。
     """
     # 1. 获取 SSE 队列
     stream_queue = get_sse_queue(task_id)
@@ -55,6 +61,13 @@ def push_sse_event(task_id: str, event: str, data: Dict[str, Any]):
     if stream_queue:
         # 3. 将事件推送到队列
         stream_queue.put({"event": event, "data": data})
+
+    # 4. Redis pub/sub + buffer（供 Java SSE 桥接）
+    if _redis_publish_sse and task_id:
+        try:
+            _redis_publish_sse(task_id, event, data or {})
+        except Exception as e:
+            logging.debug("redis publish sse failed: %s", e)
 
 
 async def sse_generator(task_id: str, request: Request) -> AsyncGenerator:

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kb.engine.mapper.KbTaskNodeMapper">
+
+    <resultMap id="KbTaskNodeMap" type="com.kb.engine.entity.KbTaskNode">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="nodeName" column="node_name"/>
+        <result property="status" column="status"/>
+        <result property="durationSec" column="duration_sec"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO kb_task_node (task_id, node_name, status, duration_sec, updated_at)
+        VALUES (#{taskId}, #{nodeName}, #{status}, #{durationSec}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE kb_task_node
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="durationSec != null">duration_sec = #{durationSec},</if>
+            <if test="updatedAt != null">updated_at = #{updatedAt},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="listByTaskId" resultMap="KbTaskNodeMap">
+        SELECT id, task_id, node_name, status, duration_sec, updated_at
+        FROM kb_task_node
+        WHERE task_id = #{taskId}
+        ORDER BY id ASC
+    </select>
+
+    <delete id="deleteByTaskId">
+        DELETE FROM kb_task_node WHERE task_id = #{taskId}
+    </delete>
+</mapper>

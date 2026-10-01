@@ -422,7 +422,7 @@ h1 {
                 </div>
                 <nav class="switch">
                     <a class="here" href="/front/import.html">入库</a>
-                    <a href="http://127.0.0.1:8001/front/chat.html">智库引擎知识库</a>
+                    <a href="/front/chat.html">智库引擎知识库</a>
                 </nav>
             </div>
         </header>
@@ -444,8 +444,8 @@ h1 {
     const fileInput = document.getElementById('fileInput');
     const fileList = document.getElementById('fileList');
 
-    // 模拟后端API地址
-    const API_BASE = 'http://127.0.0.1:8000';
+    // 同源：由 Java 网关 :8080 统一代理导入/查询 API
+    const API_BASE = '';
 
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();

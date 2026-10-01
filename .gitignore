@@ -6,3 +6,10 @@ __pycache__/
 temp_data/
 volumes/
 processor/import_processor/output_dir/
+
+# Java
+java-backend/target/
+*.iml
+.classpath
+.project
+.settings/

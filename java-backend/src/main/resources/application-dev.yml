@@ -1,0 +1,30 @@
+# Local development — STEP04 MySQL / MyBatis + STEP05 Redis + STEP07 MinIO paths
+
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/knowledge_engine?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: kb
+    password: kb123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: true
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      timeout: 3s
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+  type-aliases-package: com.kb.engine.entity
+
+logging:
+  level:
+    root: INFO
+    com.kb.engine: DEBUG
+    com.kb.engine.mapper: DEBUG

@@ -16,7 +16,7 @@
 
 ![入库界面](docs/images/ui-import.png)
 
-改造设计过程（STEP01–10 已完成）见 [`docs/design/`](docs/design/)。
+
 
 ---
 
